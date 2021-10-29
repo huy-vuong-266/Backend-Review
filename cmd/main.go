@@ -52,10 +52,10 @@ func main() {
 	fmt.Println("Redis connected")
 
 	server := http.Server{
-		Addr:    "127.0.0.1:8001",
+		Addr:    "127.0.0.1:8003",
 		Handler: handler,
 	}
-	JobPool := make(chan model.Job, 6)
+	JobPool := make(chan model.Job, 15)
 	go func() {
 		for {
 			ok := storage.Redis.LLen(constants.AddFundJobKey)
@@ -65,13 +65,18 @@ func main() {
 				jobByte, _ := jobRes.Bytes()
 				log.Println(string(jobByte))
 
-				JobPool <- model.Job{
+				select {
+				case JobPool <- model.Job{
 					Key:   constants.AddFundJobKey,
 					Value: string(jobByte),
+				}:
+				default:
+					storage.Redis.LPush(constants.AddFundJobKey, string(jobByte))
 				}
+
 			}
 
-			time.Sleep(time.Second)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 	go func() {
@@ -83,12 +88,17 @@ func main() {
 				jobByte, _ := jobRes.Bytes()
 				log.Println(string(jobByte))
 
-				JobPool <- model.Job{
+				select {
+				case JobPool <- model.Job{
 					Key:   constants.WithdrawJobKey,
 					Value: string(jobByte),
+				}:
+				default:
+					storage.Redis.LPush(constants.WithdrawJobKey, string(jobByte))
 				}
 			}
-			time.Sleep(time.Second)
+			time.Sleep(100 * time.Millisecond)
+
 		}
 	}()
 	go func() {
@@ -101,7 +111,7 @@ func main() {
 
 	}()
 
-	fmt.Println("Server listen and server at port 8001")
+	fmt.Println("Server listen and server at port 8003")
 
 	err = server.ListenAndServe()
 	if err != nil {
