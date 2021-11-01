@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
+	"runtime"
 
 	"github.com/go-playground/validator"
 	echo "github.com/labstack/echo/v4"
@@ -55,7 +55,7 @@ func main() {
 		Addr:    "127.0.0.1:8003",
 		Handler: handler,
 	}
-	JobPool := make(chan model.Job, 15)
+	JobPool := make(chan model.Job, 10)
 	go func() {
 		for {
 			ok := storage.Redis.LLen(constants.AddFundJobKey)
@@ -75,8 +75,6 @@ func main() {
 				}
 
 			}
-
-			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 	go func() {
@@ -97,13 +95,12 @@ func main() {
 					storage.Redis.LPush(constants.WithdrawJobKey, string(jobByte))
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
 
 		}
 	}()
 	go func() {
 
-		for i := 1; i <= 3; i++ {
+		for i := 1; i <= runtime.GOMAXPROCS(0); i++ {
 
 			go service.Worker.ProcessJob(service, JobPool)
 
